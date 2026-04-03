@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"');
+@import "tailwindcss";
+.mobile-filter-btn {
+    display: flex !important; /* Dùng !important để ghi đè style mặc định của Antd nếu cần */
+}
+
+/* Khi màn hình rộng hơn 768px (Desktop/Tablet) thì ẩn nút đi */
+@media (min-width: 768px) {
+    .mobile-filter-btn {
+        display: none !important;
+    }
+}
+
+/* Slider handle smooth & centered */
+.ant-slider-handle {
+    border-width: 2px !important;
+    transition:
+            box-shadow 0.2s ease,
+            transform 0.15s ease;
+}
+
+.ant-slider-handle:hover,
+.ant-slider-handle:focus {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.15) !important;
+    transform: scale(1.05);
+}
+
+/* Active dragging */
+.ant-slider-handle.ant-slider-handle-dragging {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* File: index.css hoặc App.css */
+
+/* Sửa lỗi hiển thị danh sách (ul/ol) khi dùng Tiptap */
+.ProseMirror ul {
+    list-style-type: disc;
+    padding-left: 1.5em;
+}
+
+.ProseMirror ol {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+}
+
+/* Sửa lỗi không hiển thị Heading, Paragraph margins */
+.ProseMirror p {
+    margin-bottom: 0.75em;
+    line-height: 1.6;
+}
+
+.ProseMirror h1 {
+    font-size: 2em;
+    font-weight: bold;
+    margin-bottom: 0.5em;
+}
+.ProseMirror h2 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 0.5em;
+}
+
+/* Style cho Highlight */
+.ProseMirror mark {
+    background-color: #faf594;
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+}
+
+/* Style cho Image */
+.ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: inline-block; /* Quan trọng để căn lề hoạt động */
+}
+
+/* Xóa viền xanh khi focus vào editor */
+.ProseMirror:focus {
+    outline: none;
+}
+
+/* Căn lề (Text Align) */
+.ProseMirror p[style*="text-align: center"],
+.ProseMirror h1[style*="text-align: center"],
+.ProseMirror h2[style*="text-align: center"],
+.ProseMirror img[style*="text-align: center"] {
+    text-align: center;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.ProseMirror p[style*="text-align: right"],
+.ProseMirror h1[style*="text-align: right"],
+.ProseMirror h2[style*="text-align: right"] {
+    text-align: right;
+}
+
+.ProseMirror p[style*="text-align: justify"] {
+    text-align: justify;
+}
+
+/* Removes the blue outline on Antd inputs when focused within the widget */
+.custom-ant-input .ant-select-selector,
+.custom-ant-input .ant-picker {
+    box-shadow: none !important;
+}
+.ant-picker-focused, .ant-picker:hover {
+    border-color: transparent !important;
+}
+

@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: betel_db_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: adminmongo123
+    # 1. Thêm --keyFile vào command
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--keyFile", "/opt/mongo_key"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      # 2. Mount file key vào container (read-only)
+      - ./mongo_key:/opt/mongo_key:ro
+    networks:
+      - booking_net
+    healthcheck:
+      test: |
+        mongosh --port 27017 -u root -p adminmongo123 --authenticationDatabase admin --eval "try { rs.status() } catch (err) { rs.initiate({_id:'rs0', members:[{_id:0, host:'betel_db_mongo:27017'}]}) }"
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    image: traitimtrongvang10/betel-backend:${IMAGE_TAG}
+    container_name: betel_backend
+    restart: always
+    env_file:
+      - backend.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - booking_net
+
+  frontend:
+    image: traitimtrongvang10/betel-frontend:${IMAGE_TAG}
+    container_name: betel_frontend
+    restart: always
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    networks:
+      - booking_net
+
+networks:
+  booking_net:
+    driver: bridge
+
+volumes:
+  mongo_data:

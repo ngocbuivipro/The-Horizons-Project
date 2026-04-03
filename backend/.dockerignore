@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+Dockerfile
+.git
+.gitignore
+.idea
+.vscode
+README.md
+
+# --- QUAN TRỌNG: CHẶN FILE ENV ---
+.env
+.env.*

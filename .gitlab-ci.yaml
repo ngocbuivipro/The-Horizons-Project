@@ -1,0 +1,145 @@
+stages:
+  - build-assets
+  - build-docker
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  # Định nghĩa tên Image chung
+  BACKEND_IMAGE: $DOCKER_USER/betel-backend
+  FRONTEND_IMAGE: $DOCKER_USER/betel-frontend
+
+# ====================================================
+# TEMPLATE: BUILD FRONTEND (NODEJS)
+# ====================================================
+.build_frontend_base: &build_frontend_def
+  stage: build-assets
+  image: node:18-alpine
+  script:
+    - echo "🔨 [Frontend] Installing dependencies..."
+    - cd frontend
+    - npm ci --prefer-offline --no-audit
+    - echo "🔨 [Frontend] Building with VITE_BASE_URI=$API_URL_INPUT"
+    # Inject biến môi trường vào quá trình build Vite
+    - export VITE_BASE_URI=$API_URL_INPUT
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist # Lưu lại folder dist để dùng cho bước sau
+    expire_in: 1 hour
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-npm
+    paths:
+      - frontend/node_modules/
+
+# Job cho DEV
+build_assets_dev:
+  <<: *build_frontend_def
+  variables:
+    API_URL_INPUT: $DEV_API_URL # Biến lấy từ GitLab Settings
+  only:
+    - develop
+
+# Job cho PROD
+build_assets_prod:
+  <<: *build_frontend_def
+  variables:
+    API_URL_INPUT: $PROD_API_URL
+  only:
+    - main
+
+# ====================================================
+# TEMPLATE: DOCKER BUILD & PUSH
+# ====================================================
+.build_docker_base: &build_docker_def
+  stage: build-docker
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
+  script:
+    # 1. Build Backend
+    - echo "🐳 Building Backend [$IMAGE_TAG]..."
+    - docker build --pull -t $BACKEND_IMAGE:$IMAGE_TAG ./backend
+    - docker push $BACKEND_IMAGE:$IMAGE_TAG
+    
+    # 2. Build Frontend (Sử dụng folder dist từ bước trước)
+    - echo "🐳 Building Frontend [$IMAGE_TAG]..."
+    # Lưu ý: Dùng file Dockerfile.ci thay vì Dockerfile gốc
+    - docker build --pull -t $FRONTEND_IMAGE:$IMAGE_TAG -f frontend/Dockerfile.ci ./frontend
+    - docker push $FRONTEND_IMAGE:$IMAGE_TAG
+
+# Build Docker cho Dev
+docker_dev:
+  <<: *build_docker_def
+  variables:
+    IMAGE_TAG: "dev"
+  only:
+    - develop
+
+# Build Docker cho Prod (Có thêm tag theo commit SHA)
+docker_prod:
+  <<: *build_docker_def
+  variables:
+    IMAGE_TAG: "prod"
+  after_script:
+    # Tag thêm version để rollback
+    - docker tag $BACKEND_IMAGE:prod $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
+
+# ====================================================
+# TEMPLATE: DEPLOY TO VPS
+# ====================================================
+.deploy_base: &deploy_def
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    # Cài đặt SSH
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - echo "🚀 Deploying to VPS [$DEPLOY_ENV]..."
+    
+    # 1. Tạo file .env từ biến GitLab
+    - echo "$ENV_FILE_CONTENT" > backend.env
+    
+    # 2. Upload file .env, docker-compose và script deploy lên VPS
+    - scp backend.env $VPS_USER@$VPS_IP:$REMOTE_DIR/backend.env
+    - scp $COMPOSE_FILE_LOCAL $VPS_USER@$VPS_IP:$REMOTE_DIR/docker-compose.yaml
+    - scp deploy/vps_deploy_script.sh $VPS_USER@$VPS_IP:$REMOTE_DIR/deploy.sh
+    
+    # 3. SSH vào và chạy lệnh deploy
+    - ssh $VPS_USER@$VPS_IP "chmod +x $REMOTE_DIR/deploy.sh && $REMOTE_DIR/deploy.sh $DEPLOY_TAG $DEPLOY_ENV"
+
+# Deploy Dev
+deploy_dev:
+  <<: *deploy_def
+  variables:
+    DEPLOY_ENV: "dev"
+    DEPLOY_TAG: "dev"
+    REMOTE_DIR: "/home/betel-hospitability/betel-dev"
+    COMPOSE_FILE_LOCAL: "deploy/docker-compose.dev.yml"
+    ENV_FILE_CONTENT: $ENV_DEV_FILE
+  only:
+    - develop
+
+# Deploy Prod
+deploy_prod:
+  <<: *deploy_def
+  variables:
+    DEPLOY_ENV: "prod"
+    DEPLOY_TAG: "latest" # Prod thường dùng tag latest hoặc theo version
+    
+    REMOTE_DIR: "/home/betel-hospitability/betel"
+    
+    COMPOSE_FILE_LOCAL: "deploy/docker-compose.prod.yml"
+    ENV_FILE_CONTENT: $ENV_PROD_FILE
+  only:
+    - main

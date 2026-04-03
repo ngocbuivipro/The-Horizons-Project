@@ -1,0 +1,366 @@
+====================================================================================================
+                             ONEPAY PAYMENT GATEWAY INTEGRATION - ARCHITECTURE MIND MAP
+====================================================================================================
+
++ ONEPAY INTEGRATION FLOW
+  |
+  +--- 1. PREPARATION (BEFORE START)
+  |     |
+  |     + SSL Certificate (HTTPS) - Required
+  |     + Website/Mobile App with payment capability
+  |     + Merchant registration: AccessCode, MerchantID, SecureHash Key
+  |     + Environments: Sandbox → Production
+  |
+  +--- 2. BACKEND - CREATE PAYMENT REQUEST
+  |     |
+  |     + API: POST /payment/hotel/:id  |  POST /payment/bus/:id
+  |     |     → Fetch Booking → Calculate price (VND) → Create merchTxnRef
+  |     |     → Create Payment record (PENDING)
+  |     |
+  |     + Build OnePay params:
+  |           vpc_Version=2
+  |           vpc_Command=pay
+  |           vpc_AccessCode
+  |           vpc_Merchant
+  |           vpc_ReturnURL = https://yourdomain.com/onepay/return
+  |           vpc_MerchTxnRef = BK_123_1701170000000
+  |           vpc_OrderInfo = Booking_123
+  |           vpc_Amount = totalVND * 100 (integer)
+  |           vpc_Currency = VND
+  |           vpc_Locale = vi
+  |           vpc_TicketNo = Client IP
+  |     |
+  |     + Create SecureHash:
+  |           rawData = sort(params) + "&" + key=value
+  |           vpc_SecureHash = SHA256(rawData + HASH_CODE).toUpperCase()
+  |     |
+  |     + Redirect URL:
+  |           https://mtf.onepay.vn/onecomm-pay/vpc.op?{params}
+  |           → Return to Frontend: { paymentUrl }
+  |
+  +--- 3. FRONTEND - INITIATE PAYMENT
+  |     |
+  |     + User visits /payment/:id
+  |     |     → Display total amount, nights
+  |     |     → Button: "Pay with OnePay"
+  |     |
+  |     + Call API: POST /payment/hotel/:id
+  |     |     → Receive paymentUrl
+  |     |     → window.location.href = paymentUrl
+  |     |
+  |     + (Optional) Display:
+  |           - OnePay logo
+  |           - Payment methods: International Cards, ATM, QR, eWallets
+  |
+  +--- 4. ONEPAY - PAYMENT PAGE
+  |     |
+  |     + User enters card / scans QR / selects wallet
+  |     + OnePay processes the transaction
+  |     |
+  |     + Result:
+  |           → Redirect to vpc_ReturnURL (DR - Direct Response)
+  |           → Send IPN (POST/GET) to /onepay/ipn
+  |
+  +--- 5. BACKEND - HANDLE RESULT
+  |     |
+  |     +--- A. Return URL (GET /onepay/return)
+  |     |     |
+  |     |     + Receive params from query string
+  |     |     + Verify vpc_SecureHash (must match)
+  |     |     + Check vpc_TxnResponseCode:
+  |     |           "0" → Success (not yet confirmed)
+  |     |           ≠0 → Failed (store error code)
+  |     |     + Update Booking: onePay.status = "SUCCESS_TEMP" / "FAILED"
+  |     |     + Redirect to Frontend: /payment/result?status=success|failed&bookingId=xxx
+  |     |
+  |     +--- B. IPN (POST/GET /onepay/ipn) ← FINAL TRUSTED SOURCE
+  |           |
+  |           + Receive params (can be POST)
+  |           + Verify vpc_SecureHash
+  |           + If vpc_TxnResponseCode === "0":
+  |                 → payment.status = "SUCCESS"
+  |                 → booking.isPaid = true
+  |                 → booking.status = "CONFIRMED"
+  |                 → booking.payAt = now
+  |                 → Save vpc_TransactionNo
+  |           + Return: 200 OK
+  |
+  +--- 6. FRONTEND - DISPLAY RESULT
+  |     |
+  |     + Page: /payment/result
+  |     |     → Read bookingId from query params
+  |     |     → Display: "Success" / "Failed"
+  |     |
+  |     + Poll API: GET /payment/booking/:id/status (every 3s)
+  |           → Check paymentStatus === "SUCCESS"
+  |           → If yes → Stop polling → Navigate to /order/:id
+  |           → If more than 5 minutes → Show: "Processing, please check later"
+  |
+  +--- 7. EXCEPTION HANDLING (Timeout / Connection Lost)
+        |
+        + Backend: QueryDR API (if IPN/Return didn't arrive)
+        |     → POST https://mtf.onepay.vn/paygate/vpc_QueryDR.do
+        |     → Params: vpc_Command=queryDR + merchTxnRef + SecureHash
+        |     → Receive result → Update DB if necessary
+        |
+        + Optional cron job: Every 5 minutes check bookings PENDING > 10 minutes
+              → Call QueryDR → Confirm or cancel
+
+====================================================================================================
+                                DATA FLOW SUMMARY
+====================================================================================================
+
+[Frontend]
+   ↓ POST /payment/:id
+[Backend] → Create Payment Request → Redirect OnePay
+   ↓
+[OnePay] → User pays
+   ↓
+[OnePay] → IPN (POST) → Backend (final confirmation)
+   ↓
+[OnePay] → Return URL (GET) → Backend → Redirect /payment/result
+   ↓
+[Frontend] → Poll /status → Display result → Navigate
+
+====================================================================================================
+                                 ENVIRONMENTS & TESTING
+====================================================================================================
+
++ SANDBOX:
+  - URL: https://mtf.onepay.vn/onecomm-pay/vpc.op
+  - QueryDR: https://mtf.onepay.vn/paygate/vpc_QueryDR.do
+  - Test cards:
+      Visa Success: 4111111111111111 | 05/27 | 123
+      Fail: 4000000000000000
+
++ PRODUCTION:
+  - Replace URL: https://onepay.vn/...
+  - Update AccessCode, HashKey with real values
+
+====================================================================================================
+                                    SECURITY
+====================================================================================================
+
++ Do not store card details (except tokenization)
++ Hash Key must be stored on Backend (env)
++ Verify SecureHash on every response
++ IPN is the trusted source → Do not fully trust Return URL
++ HTTPS is required
+
+====================================================================================================
+
+====================================================================================================
+                    BACKEND ONEPAY TESTING WITH POSTMAN - ARCHITECTURE MIND MAP (NOTEPAD)
+====================================================================================================
+
++ GOAL: Test backend only (Node.js/Express) → No frontend required → Use Postman
+  |
+  +--- REQUIREMENTS
+  |     |
+  |     + Backend server running (localhost:5000 or domain)
+  |     + MongoDB connected
+  |     + Have an existing Booking (hotel or bus) with stepPayment = false
+  |     + OnePay sandbox config:
+  |           MERCHANT_PAYNOW_ACCESS_CODE
+  |           ONEPAY_MERCHANT
+  |           MERCHANT_PAYNOW_HASH_CODE
+  |           BASE_URL = https://mtf.onepay.vn/onecomm-pay/vpc.op
+  |           ONEPAY_RETURN_URL = http://localhost:5000/api/payment/onepay/return
+  |
+  +--- TEST STEPS IN ORDER
+
+============================================================================================
+  1. CREATE A TEST BOOKING (If none exists)
+============================================================================================
+     |
+     + POST /api/booking/create-hotel (or /create-bus)
+     |     Body (JSON):
+     |     {
+     |       "checkIn": "2025-11-20",
+     |       "checkOut": "2025-11-22",
+     |       "roomType": "60d5ec49f1b2c2b6f8e8e8e8",  // ID roomType with price
+     |       "selectedCurrency": "VND"
+     |     }
+     |     → Response: { _id: "BK123" } → Save bookingId
+
+============================================================================================
+  2. CALL PAYMENT REQUEST API
+============================================================================================
+     |
+     + POST http://localhost:5000/api/payment/hotel/BK123
+     |     Headers:
+     |       Content-Type: application/json
+     |       Authorization: Bearer <token> (if auth required)
+     |
+     + Body: {} (no body needed)
+     |
+     + Response (200 OK):
+     |     {
+     |       "success": true,
+     |       "data": {
+     |         "paymentUrl": "https://mtf.onepay.vn/onecomm-pay/vpc.op?vpc_Version=2&...",
+     |         "totalPriceVND": 3000000,
+     |         "paymentId": "PAY123"
+     |       }
+     |     }
+     |
+     + Check:
+           → paymentUrl contains vpc_SecureHash (64 hex chars)
+           → merchTxnRef = BK_BK123_...
+           → vpc_Amount = 300000000 (x100)
+
+============================================================================================
+  3. OPEN PAYMENT URL IN BROWSER (Test OnePay Sandbox)
+============================================================================================
+     |
+     + Copy paymentUrl from Postman → Paste into Chrome/Firefox
+     |     → OnePay displays payment page
+     |
+     + Use test cards (from V.3 above):
+     |     + Success: Visa 4111 1111 1111 1111 | 05/27 | 123
+     |     + Fail: 4000 0000 0000 0000 | 12/25 | 123
+     |
+     + Enter → Pay → OnePay processes
+
+============================================================================================
+  4. VERIFY RETURN URL (DR - Direct Response)
+============================================================================================
+     |
+     + After payment → OnePay redirects to:
+     |     http://localhost:5000/api/payment/onepay/return?...&vpc_TxnResponseCode=0
+     |
+     + Postman: Create a new request
+     |     GET http://localhost:5000/api/payment/onepay/return
+     |     Query Params: Paste all params from redirect URL
+     |     Example:
+     |       vpc_MerchTxnRef=BK_BK123_1701170000000
+     |       vpc_TxnResponseCode=0
+     |       vpc_TransactionNo=123456
+     |       vpc_SecureHash=ABC...XYZ
+     |
+     + Response: Redirect 302 → /payment/result?status=success
+     |
+     + Check DB:
+           → Payment.rawResponse contains params
+           → Booking.onepay.status = "SUCCESS_TEMP"
+
+============================================================================================
+  5. VERIFY IPN (Instant Payment Notification)
+============================================================================================
+     |
+     + OnePay sends POST/GET to: http://localhost:5000/api/payment/onepay/ipn
+     |     (Not automatic if localhost → Use ngrok)
+     |
+     + Step 1: Install ngrok
+           ngrok http 5000 → https://abc123.ngrok.io
+           → Update ONEPAY_RETURN_URL = https://abc123.ngrok.io/api/payment/onepay/return
+     |
+     + Step 2: Repeat steps 2 & 3
+     |     → OnePay will send IPN to ngrok → forwarded to localhost
+     |
+     + Postman: Create request
+     |     POST http://localhost:5000/api/payment/onepay/ipn
+     |     Body: x-www-form-urlencoded (paste params from OnePay)
+     |     Example:
+     |       vpc_MerchTxnRef=BK_BK123_...
+     |       vpc_TxnResponseCode=0
+     |       vpc_SecureHash=...
+     |
+     + Response: 200 OK → { success: true }
+     |
+     + Check DB:
+           → payment.status = "SUCCESS"
+           → booking.isPaid = true
+           → booking.status = "CONFIRMED"
+
+============================================================================================
+  6. TEST QUERYDR (Query result if IPN/Return missing)
+============================================================================================
+     |
+     + POST http://localhost:5000/api/payment/onepay/query
+     |     Body (JSON):
+     |     {
+     |       "merchTxnRef": "BK_BK123_1701170000000"
+     |     }
+     |
+     + Response:
+     |     {
+     |       "success": true,
+     |       "data": {
+     |         "vpc_TxnResponseCode": "0",
+     |         "vpc_TransactionNo": "123456"
+     |       }
+     |     }
+     |
+     + Check DB: Updated to SUCCESS if code = 0
+
+============================================================================================
+  7. ERROR TEST (vpc_TxnResponseCode ≠ 0)
+============================================================================================
+     |
+     + Use fail card: 4000 0000 0000 0000
+     |     → vpc_TxnResponseCode = "1" or "2"
+     |
+     + Check:
+           → booking.onepay.status = "FAILED"
+           → payment.status = "FAILED"
+           → No success redirect
+
+============================================================================================
+  8. ERROR CODE TABLE (Section IV.1 of docs)
+============================================================================================
+     |
+     + Common error codes:
+     |     0  = Success
+     |     1  = Transaction failed
+     |     2  = Bank declined
+     |     3  = Transaction expired
+     |     7  = Connection error
+     |
+     + Verify response contains correct description
+
+====================================================================================================
+                                TOOLS
+====================================================================================================
+
++ Postman Collection (prebuilt):
+  - 1. Create Booking
+  - 2. Create Payment → Save paymentUrl
+  - 3. Manual: Open paymentUrl in browser
+  - 4. Simulate Return URL (GET)
+  - 5. Simulate IPN (POST)
+  - 6. QueryDR
+
++ Ngrok (Required for IPN testing):
+      ngrok http 5000
+      → Update ONEPAY_RETURN_URL in config
+
++ MongoDB Compass:
+      → Inspect Booking & Payment after each step
+
+====================================================================================================
+                                TEST NOTES
+====================================================================================================
+
++ SecureHash must match → If not → "Invalid Secure Hash"
++ merchTxnRef must be unique → Do not duplicate
++ Amount must be *100 and a string
++ IPN is the trusted source → Return is provisional
++ Do not test production with real cards
++ Use backend console logs for debugging
+
+====================================================================================================
+                                CONCLUSION
+====================================================================================================
+
+[Postman] → POST /payment/hotel/:id → Receive paymentUrl
+   ↓
+[Browser] → Open paymentUrl → Pay (test card)
+   ↓
+[OnePay] → Send IPN + Return → Backend updates DB
+   ↓
+[Postman] → GET /payment/booking/:id/status → Confirm SUCCESS
+
+→ COMPLETE BACKEND TEST!
+
+====================================================================================================

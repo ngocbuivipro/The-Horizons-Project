@@ -1,0 +1,73 @@
+/* CalendarStyles.css */
+
+/* Font chữ và Reset */
+.rbc-calendar {
+    font-family: 'Inter', system-ui, sans-serif !important;
+    color: #374151 !important;
+}
+
+/* Khung viền tổng thể - Bo tròn và bỏ viền thô */
+.rbc-month-view {
+    border: 1px solid #f3f4f6 !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    background: white;
+}
+
+/* Header thứ trong tuần (Sun, Mon...) */
+.rbc-header {
+    padding: 12px 0 !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #9ca3af !important; /* text-gray-400 */
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+    border-left: none !important; /* Bỏ viền dọc */
+}
+
+/* Ô ngày tháng */
+.rbc-day-bg {
+    background-color: white !important;
+    border-left: 1px solid #f9fafb !important; /* Viền dọc rất mờ */
+}
+
+/* Ngày hôm nay */
+.rbc-today {
+    background-color: #f5f3ff !important; /* bg-violet-50 */
+}
+
+/* Số ngày (1, 2, 3...) */
+.rbc-date-cell {
+    padding: 8px !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+}
+
+/* Ngày không thuộc tháng này */
+.rbc-off-range-bg {
+    background-color: #f9fafb !important; /* bg-gray-50 */
+}
+
+/* Bỏ viền của Event mặc định để dùng CustomEventCalendar của mình */
+.rbc-event {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 2px !important;
+    outline: none !important;
+}
+.rbc-event:focus {
+    outline: none !important;
+}
+
+/* Grid row borders */
+.rbc-month-row {
+    border-top: 1px solid #f3f4f6 !important;
+}
+
+/* Hover hiệu ứng cho ô ngày */
+.rbc-day-bg:hover {
+    background-color: #fafafa !important;
+    transition: background-color 0.2s;
+}

@@ -1,0 +1,46 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: betel_mongo_dev
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: adminmongo123
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data_dev:/data/db
+    networks:
+      - booking_net_dev
+
+  backend:
+    image: traitimtrongvang10/betel-backend:${IMAGE_TAG} # Dùng biến IMAGE_TAG
+    container_name: betel_backend_dev
+    restart: always
+    env_file:
+      - backend.env
+    ports:
+      - "8082:8080" # Map 8082 ngoài vào 8080 trong
+    depends_on:
+      - mongo
+    networks:
+      - booking_net_dev
+
+  frontend:
+    image: traitimtrongvang10/betel-frontend:${IMAGE_TAG}
+    container_name: betel_frontend_dev
+    restart: always
+    ports:
+      - "8083:80" # Map 8083 ngoài vào 80 trong
+    depends_on:
+      - backend
+    networks:
+      - booking_net_dev
+
+networks:
+  booking_net_dev:
+    driver: bridge
+
+volumes:
+  mongo_data_dev:
