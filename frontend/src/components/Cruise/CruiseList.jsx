@@ -29,6 +29,8 @@ const CruiseList = () => {
         totalItems: 0
     });
 
+    const [sortBy, setSortBy] = useState('recommended');
+
     const [filters, setFilters] = useState({
         city: null,
         date: "",
@@ -39,6 +41,7 @@ const CruiseList = () => {
         stars: [],
         amenities: [],
         search: "",
+        sortBy: 'recommended',
         page: 1
     });
 
@@ -286,9 +289,15 @@ const CruiseList = () => {
                             </div>
 
                             <Select
-                                defaultValue="recommended"
+                                value={sortBy}
                                 variant="borderless"
                                 className="font-bold min-w-[150px]"
+                                onChange={(value) => {
+                                    setSortBy(value);
+                                    const newFilters = { ...filters, sortBy: value, page: 1 };
+                                    setFilters(newFilters);
+                                    executeSearch(newFilters);
+                                }}
                                 options={[
                                     { value: 'recommended', label: 'Recommended' },
                                     { value: 'price_asc', label: 'Price: Low to High' },

@@ -192,7 +192,10 @@ const InfoTour = ({data}) => {
                                         type="number"
                                         min={1}
                                         value={adults}
-                                        onChange={e => setAdults(Number(e.target.value))}
+                                        onChange={e => {
+                                            const val = Math.round(Number(e.target.value));
+                                            setAdults(val < 1 ? 1 : val);
+                                        }}
                                         className="w-full bg-transparent p-0 text-sm text-gray-700 font-medium outline-none"
                                     />
                                 </div>
@@ -204,7 +207,10 @@ const InfoTour = ({data}) => {
                                         type="number"
                                         min={0}
                                         value={children}
-                                        onChange={e => setChildren(Number(e.target.value))}
+                                        onChange={e => {
+                                            const val = Math.round(Number(e.target.value));
+                                            setChildren(val < 0 ? 0 : val);
+                                        }}
                                         className="w-full bg-transparent p-0 text-sm text-gray-700 font-medium outline-none"
                                     />
                                 </div>

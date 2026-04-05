@@ -5,7 +5,7 @@ import {
 } from "antd";
 import {
     FilterOutlined, SearchOutlined, DeleteOutlined,
-    ExclamationCircleOutlined, SyncOutlined, RestOutlined
+    ExclamationCircleOutlined, SyncOutlined
 } from "@ant-design/icons";
 import { useMediaQuery } from "react-responsive";
 
@@ -28,9 +28,7 @@ const AdminViewOrders = () => {
     const [modal, contextHolder] = Modal.useModal();
     const isMobile = useMediaQuery({ maxWidth: 768 });
 
-    const [showTrash, setShowTrash] = useState(false);
-    const [trashData, setTrashData] = useState([]);
-    const [trashLoading, setTrashLoading] = useState(false);
+
 
     // Filters & Pagination
     const [filters, setFilters] = useState({
@@ -79,29 +77,6 @@ const AdminViewOrders = () => {
             setLoading(false);
         }
     }, []);
-
-    const fetchTrashApi = useCallback(async () => {
-        setTrashLoading(true);
-        try {
-            // --- FIX 3: Fetch items that ARE deleted or Cancelled ---
-            const params = { page: 1, limit: 100, isDeleted: true };
-            const res = await getAllBookingApi(params);
-
-            if (res && res.success) {
-                // Fallback: If backend returns everything, filter only deleted ones
-                const deletedItems = res.data.filter(item => item.isDeleted || item.status === 'CANCELLED');
-                setTrashData(deletedItems);
-            }
-        } catch (error) {
-            message.error("Could not load trash ", error);
-        } finally {
-            setTrashLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (showTrash) fetchTrashApi();
-    }, [showTrash, fetchTrashApi]);
 
     useEffect(() => {
         fetchApi(pagination.current, pagination.pageSize, { ...filters, search: debouncedSearch });
@@ -256,7 +231,7 @@ const AdminViewOrders = () => {
                         <Title level={2} style={{ margin: 0, fontWeight: 700, letterSpacing: '-0.5px' }}>Orders</Title>
                         <Text type="secondary" className="text-slate-500">Monitor and manage all bookings.</Text>
                     </div>
-                    <Button icon={<RestOutlined />} onClick={() => setShowTrash(true)} className="text-gray-500 border-gray-200 hover:text-red-600 hover:border-red-200">Recycle Bin</Button>
+
                 </div>
 
                 <div className="max-w-full mx-auto">
@@ -297,22 +272,7 @@ const AdminViewOrders = () => {
                     </div>
                 </div>
 
-                <Modal title={<span className="font-bold">Recycle Bin</span>} open={showTrash} onCancel={() => setShowTrash(false)} footer={null} width={800}>
-                    <Table
-                        dataSource={trashData}
-                        rowKey="_id"
-                        loading={trashLoading}
-                        pagination={{ pageSize: 5 }}
-                        size="small"
-                        bordered
-                        columns={[
-                            { title: 'Ref', dataIndex: '_id', width: 100, render: id => <Tag className="font-mono bg-slate-100 border-0">#{id.slice(-6).toUpperCase()}</Tag> },
-                            { title: 'Customer', dataIndex: 'email' },
-                            { title: 'Service', dataIndex: 'bookingType', render: (t) => <Tag>{t}</Tag> },
-                            { title: 'Actions', align: 'right', render: (_, r) => (<Button danger size="small" icon={<DeleteOutlined />} onClick={() => handleHardDelete(r)}>Delete</Button>) }
-                        ]}
-                    />
-                </Modal>
+
             </div>
         </ConfigProvider>
     );

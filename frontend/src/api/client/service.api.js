@@ -37,6 +37,12 @@ export const searchCruiseApi = async (params) => {
             queryParams.duration = mapped.join(',');
         }
 
+        // Map sortBy (frontend) → sort (backend)
+        if (params.sortBy && params.sortBy !== 'recommended') {
+            queryParams.sort = params.sortBy;
+        }
+        delete queryParams.sortBy; // không gửi sortBy thừa lên backend
+
         const response = await axios.get(URL_API, { params: queryParams });
         return response;
     } catch (error) {
