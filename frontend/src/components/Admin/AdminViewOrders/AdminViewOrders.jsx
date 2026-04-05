@@ -174,7 +174,6 @@ const AdminViewOrders = () => {
                         <Select.Option value="HOTEL">Accommodation</Select.Option>
                         <Select.Option value="TOUR">Tours</Select.Option>
                         <Select.Option value="CRUISE">Cruises</Select.Option>
-                        <Select.Option value="BUS">Bus Trips</Select.Option>
                     </Select>
                 </div>
                 <div>

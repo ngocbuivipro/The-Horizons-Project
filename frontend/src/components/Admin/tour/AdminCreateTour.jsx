@@ -108,6 +108,14 @@ const AdminCreateTour = () => {
     const [priceExtra, setPriceExtra] = useState([]);
     const [availabilityRules, setAvailabilityRules] = useState([]);
 
+    // Auto-compute durationText whenever duration changes
+    useEffect(() => {
+        if (duration && duration >= 1) {
+            const nights = duration - 1;
+            setDurationText(nights > 0 ? `${duration} Days ${nights} Night${nights > 1 ? 's' : ''}` : `${duration} Day`);
+        }
+    }, [duration]);
+
     // Fetch Services
     useEffect(() => {
         const fetchServices = async () => {
@@ -382,8 +390,8 @@ const AdminCreateTour = () => {
                                 <Select size="large" value={tourType || undefined} onChange={setTourType} placeholder="Select Type" options={TOUR_TYPES}/>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-semibold text-gray-700">Duration Text</label>
-                                <Input size="large" placeholder="e.g. 3 Days 2 Nights" value={durationText} onChange={(e) => setDurationText(e.target.value)} prefix={<ClockCircleOutlined className="text-gray-400"/>} className="rounded-xl"/>
+                                <label className="text-sm font-semibold text-gray-700">Duration Text <span className="text-xs text-gray-400 font-normal">(auto)</span></label>
+                                <Input size="large" value={durationText} readOnly prefix={<ClockCircleOutlined className="text-gray-400"/>} className="rounded-xl bg-gray-50 cursor-not-allowed" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="flex flex-col gap-2"><label className="text-sm font-semibold text-gray-700">Days</label><InputNumber style={{ width: "100%", height: "100%" }} min={1} value={duration} onChange={setDuration} className="w-full rounded-xl py-1"/></div>

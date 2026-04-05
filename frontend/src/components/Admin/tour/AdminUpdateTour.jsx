@@ -1,12 +1,10 @@
-import {Select, InputNumber, Switch, Button, Input, Spin, DatePicker, Tooltip} from "antd";
-import React, {useState, useEffect, useMemo} from "react";
+import {Select, InputNumber, Switch, Button, Input, Spin, Tooltip} from "antd";
+import React, {useState, useEffect} from "react";
 import {IoCloudUploadOutline, IoAddCircleOutline, IoTrashOutline} from "react-icons/io5";
 import {useNavigate, useParams} from "react-router-dom";
 import toast from "react-hot-toast";
-// Added FaUnlock here
-import {FaEye, FaEyeSlash, FaStar, FaSave, FaDollarSign, FaBan, FaQuestionCircle, FaUnlock} from "react-icons/fa";
+import {FaEye, FaEyeSlash, FaSave, FaQuestionCircle} from "react-icons/fa";
 import {ClockCircleOutlined, TeamOutlined, DollarOutlined, ArrowLeftOutlined} from "@ant-design/icons";
-import moment from "moment";
 
 import Services from "../../Services/Services.jsx";
 import EditorTiny from "../../TextEditor/EditorTiny.jsx";
@@ -21,7 +19,7 @@ import {
     uploadByLinkApi, getPolicyApi,
 } from "../../../api/client/api.js";
 import {cities} from "../../../common/common.js";
-import AdminCalendar from "../../Utils/Calendar/AdminCalendar.jsx";
+
 import Policy from "../../Utils/Policy/Policy.jsx";
 import ModelCreatePolicy from "../../Hotel/ModelCreatePolicy/ModelCreatePolicy.jsx";
 
@@ -57,7 +55,6 @@ const AdminUpdateTour = () => {
     const [maxGroupSize, setMaxGroupSize] = useState(10);
     const [price, setPrice] = useState();
     const [priceChildren, setPriceChildren] = useState();
-    const [featured, setFeatured] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
 
     // Media
@@ -72,22 +69,18 @@ const AdminUpdateTour = () => {
     // Itinerary
     const [itinerary, setItinerary] = useState([]);
 
+    // Auto-compute durationText whenever duration changes
+    useEffect(() => {
+        if (duration && duration >= 1) {
+            const nights = duration - 1;
+            setDurationText(nights > 0 ? `${duration} Days ${nights} Night${nights > 1 ? 's' : ''}` : `${duration} Day`);
+        }
+    }, [duration]);
+
     // MODAL STATE
     const [showModel, setShowModel] = useState(false);
 
-    // --- CALENDAR STATE ---
-    const [calendarMode, setCalendarMode] = useState("PRICE"); // "PRICE" | "BLOCK" | "OPEN"
-    const [startDate, setStartDate] = useState(null);
-    const [endDate, setEndDate] = useState(null);
-    const [openEndDate, setOpenEndDate] = useState(false);
-    const [priceEvents, setPriceEvents] = useState("");
-    const [daysChoosed, setDaysChoosed] = useState([
-        "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
-    ]);
 
-    // Data for Calendar Save
-    const [priceExtra, setPriceExtra] = useState([]);
-    const [availabilityRules, setAvailabilityRules] = useState([]);
 
     // --- POLICY STATE ---
     const [typePolicyDefault, setTypePolicyDefault] = useState([
@@ -142,7 +135,6 @@ const AdminUpdateTour = () => {
                         setMaxGroupSize(t.maxGroupSize);
                         setPrice(t.price);
                         setPriceChildren(t.priceChildren);
-                        setFeatured(t.featured);
                         setIsVisible(t.isVisible);
                         setPhotos(t.images || t.photos || []);
                         setDescription(t.description || "");
@@ -152,8 +144,7 @@ const AdminUpdateTour = () => {
                         setPolicyChecked(existingPolicyIds);
 
                         setItinerary(t.itinerary || []);
-                        setPriceExtra(t.priceExtra || []);
-                        setAvailabilityRules(t.availabilityRules || []);
+
                     } else {
                         toast.error("Tour not found");
                         navigate("/dashboard-view-tours");
@@ -218,128 +209,7 @@ const AdminUpdateTour = () => {
         setItinerary(newItinerary);
     };
 
-    // --- CALENDAR LOGIC ---
-    const baseEvents = useMemo(() => {
-        if (!price) return [];
-        const events = [];
-        let current = moment().startOf('day');
-        const endRange = moment().add(1, "year");
 
-        while (current.isBefore(endRange)) {
-            events.push({
-                start: current.toDate(),
-                end: current.clone().endOf("day").toDate(),
-                title: price,
-                type: "BASE_PRICE",
-                isBlocked: false,
-            });
-            current.add(1, "day");
-        }
-        return events;
-    }, [price]);
-
-    const combinedEvents = useMemo(() => {
-        const overrideEvents = priceExtra.map((p) => ({
-            start: new Date(p.start),
-            end: new Date(p.end),
-            title: p.price,
-            type: "PRICE_OVERRIDE",
-            isBlocked: false,
-        }));
-
-        const blockEvents = availabilityRules
-            .filter((r) => r.isBlocked)
-            .map((r) => ({
-                start: new Date(r.startDate),
-                end: new Date(r.endDate),
-                title: "Closed",
-                type: "BLOCK",
-                isBlocked: true,
-            }));
-
-        const occupiedDates = new Set();
-        [...overrideEvents, ...blockEvents].forEach((e) => {
-            occupiedDates.add(moment(e.start).startOf("day").valueOf());
-        });
-
-        const filteredBase = baseEvents.filter(
-            (e) => !occupiedDates.has(moment(e.start).startOf("day").valueOf())
-        );
-
-        return [...filteredBase, ...overrideEvents, ...blockEvents];
-    }, [baseEvents, priceExtra, availabilityRules]);
-
-    const handleStartDateChange = (date) => {
-        setStartDate(date);
-        if (date) setOpenEndDate(true);
-    };
-    const handleEndDateChange = (date) => {
-        setEndDate(date);
-        setOpenEndDate(false);
-    };
-    const handleDayClick = (dayShort) => {
-        const mapDay = {
-            Sun: "Sunday", Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday",
-            Thu: "Thursday", Fri: "Friday", Sat: "Saturday",
-        };
-        const fullDay = mapDay[dayShort];
-        setDaysChoosed((prev) =>
-            prev.includes(fullDay) ? prev.filter((d) => d !== fullDay) : [...prev, fullDay]
-        );
-    };
-
-    // --- APPLY CHANGES (Updated with OPEN Logic) ---
-    const handleApplyChanges = () => {
-        if (!startDate || !endDate) return toast.error("Please select date range");
-
-        // Only constants price if mode is PRICE
-        if (calendarMode === "PRICE" && (!priceEvents || Number(priceEvents) <= 0)) return toast.error("Invalid price");
-
-        const start = moment(startDate.toDate()).startOf('day');
-        const end = moment(endDate.toDate()).endOf('day');
-
-        let newPrices = [...priceExtra];
-        let newRules = [...availabilityRules];
-
-        while (start.isSameOrBefore(end, "day")) {
-            const dayName = start.format("dddd");
-
-            if (daysChoosed.includes(dayName)) {
-                const dateStartJS = start.toDate();
-                const dateEndJS = start.clone().endOf('day').toDate();
-
-                // 1. CLEAN UP: Always remove existing data for this day first
-                newPrices = newPrices.filter((p) => !moment(p.start).isSame(start, 'day'));
-                newRules = newRules.filter((r) => !moment(r.startDate).isSame(start, 'day'));
-
-                // 2. ADD NEW: Only add if not in OPEN mode
-                if (calendarMode === "PRICE") {
-                    newPrices.push({
-                        start: dateStartJS,
-                        end: dateEndJS,
-                        price: Number(priceEvents),
-                    });
-                } else if (calendarMode === "BLOCK") {
-                    newRules.push({
-                        startDate: dateStartJS,
-                        endDate: dateEndJS,
-                        isBlocked: true,
-                        note: "Closed",
-                    });
-                }
-                // If OPEN mode, we do nothing (leaving it cleaned)
-            }
-            start.add(1, "days");
-        }
-
-        setPriceExtra(newPrices);
-        setAvailabilityRules(newRules);
-
-        toast.success(calendarMode === "OPEN" ? "Dates unblocked/opened!" : "Calendar updated!");
-        setPriceEvents("");
-        setStartDate(null);
-        setEndDate(null);
-    };
 
     // --- SUBMIT UPDATE ---
     const handleUpdateTour = async (e) => {
@@ -362,15 +232,13 @@ const AdminUpdateTour = () => {
             maxGroupSize,
             price,
             priceChildren: priceChildren || 0,
-            featured,
             isVisible,
             images: photos,
             description,
             services,
             policy: policyChecked,
             itinerary,
-            priceExtra,
-            availabilityRules
+
         };
 
         try {
@@ -426,14 +294,6 @@ const AdminUpdateTour = () => {
                         {/* Box chứa Switches: Mobile giãn full width */}
                         <div className="flex items-center justify-between sm:justify-start bg-white p-1.5 md:p-2 rounded-xl border border-gray-100 shadow-sm w-full sm:w-auto">
 
-                            <div className="flex items-center justify-center sm:justify-start gap-2 px-2 md:px-3 border-r border-gray-200 w-1/2 sm:w-auto">
-                    <span className={`text-xs md:text-sm font-semibold flex items-center gap-1 ${featured ? "text-yellow-500" : "text-gray-400"}`}>
-                        <FaStar size={14} />
-                        <span className="hidden sm:inline">{featured ? "Featured" : "Standard"}</span>
-                        <span className="sm:hidden">Feat.</span> {/* Mobile viết tắt */}
-                    </span>
-                                <Switch checked={featured} onChange={setFeatured} size="small" className={featured ? "bg-yellow-400" : "bg-gray-300"}/>
-                            </div>
 
                             <div className="flex items-center justify-center sm:justify-start gap-2 px-2 md:px-3 w-1/2 sm:w-auto">
                     <span className={`text-xs md:text-sm font-semibold flex items-center gap-2 ${isVisible ? "text-green-600" : "text-gray-500"}`}>
@@ -501,13 +361,13 @@ const AdminUpdateTour = () => {
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-semibold text-gray-700">Duration Text</label>
+                                <label className="text-sm font-semibold text-gray-700">Duration Text <span className="text-xs text-gray-400 font-normal">(auto)</span></label>
                                 <Input
                                     size="large"
                                     value={durationText}
-                                    onChange={(e) => setDurationText(e.target.value)}
+                                    readOnly
                                     prefix={<ClockCircleOutlined className="text-gray-400"/>}
-                                    className="rounded-xl"
+                                    className="rounded-xl bg-gray-50 cursor-not-allowed"
                                 />
                             </div>
 
@@ -552,133 +412,9 @@ const AdminUpdateTour = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 3: CALENDAR */}
-                    <div className="w-full bg-white border border-gray-100 shadow-sm rounded-2xl p-6 transition-shadow hover:shadow-md overflow-hidden">
-                        <div className="flex mb-6 items-center gap-3 border-b border-gray-100 pb-3">
-                            <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
-                            <h2 className="font-semibold text-gray-700 text-lg">Calendar & Availability</h2>
-                        </div>
+                    {/* SECTION 3: Itinerary (formerly SECTION 4) */}
 
-                        <div className="flex flex-col xl:flex-row gap-8">
-                            <div className="flex-1">
-                                <AdminCalendar events={combinedEvents}/>
-                            </div>
 
-                            {/* Control Panel */}
-                            <div className="w-full xl:w-1/3 h-fit bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
-                                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                                    <span className="w-1.5 h-6 bg-indigo-500 rounded-full block"></span> Manage Calendar
-                                </h3>
-
-                                <div className="mb-6 p-1 bg-gray-100 rounded-xl flex">
-                                    <button onClick={() => setCalendarMode("PRICE")}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${calendarMode === "PRICE" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                                        <FaDollarSign className="inline mb-0.5 mr-1"/> Price
-                                    </button>
-                                    <button onClick={() => setCalendarMode("BLOCK")}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${calendarMode === "BLOCK" ? "bg-white text-red-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                                        <FaBan className="inline mb-0.5 mr-1"/> Block
-                                    </button>
-                                    <button onClick={() => setCalendarMode("OPEN")}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${calendarMode === "OPEN" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                                        <FaUnlock className="inline mb-0.5 mr-1"/> Open
-                                    </button>
-                                </div>
-
-                                <div className="mb-6">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Date Range</label>
-                                    <div className="flex flex-col gap-3">
-                                        <DatePicker className="w-full h-11 rounded-xl border-gray-200"
-                                                    disabledDate={(c) => c && c < moment().endOf("day")}
-                                                    value={startDate} onChange={handleStartDateChange}
-                                                    placeholder="Start Date" format="DD/MM/YYYY"/>
-                                        <DatePicker className="w-full h-11 rounded-xl border-gray-200"
-                                                    disabledDate={(c) => c && c < moment().endOf("day")} value={endDate}
-                                                    open={openEndDate} onChange={handleEndDateChange}
-                                                    onClick={() => setOpenEndDate(true)} placeholder="End Date"
-                                                    format="DD/MM/YYYY"/>
-                                    </div>
-                                </div>
-
-                                <div className="mb-6">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Recur on Days</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => {
-                                            const fullNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                                            const isSel = daysChoosed.includes(fullNames[idx]);
-                                            return (
-                                                <div key={idx} onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    handleDayClick(day);
-                                                }}
-                                                     className={`cursor-pointer w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all shadow-sm border ${isSel ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200 scale-105" : "bg-white text-gray-500 hover:text-indigo-600 border-gray-200"}`}>{day.charAt(0)}</div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <div className="mb-8">
-                                    {calendarMode === "PRICE" && (
-                                        <div className="relative group">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block ml-1">
-                                                Price per night
-                                            </label>
-                                            <InputNumber
-                                                className="w-full !rounded-xl !bg-gray-50 !border-gray-200 hover:!border-indigo-500 focus-within:!border-indigo-500 focus-within:!ring-2 focus-within:!ring-indigo-500/20 shadow-sm transition-all duration-200"
-                                                placeholder="0"
-                                                value={priceEvents}
-                                                onChange={(val) => setPriceEvents(val)}
-                                                min={0}
-                                                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                                                parser={(value) => value?.replace(/\$\s?|(,*)/g, "")}
-                                                style={{width: '100%'}}
-                                                controls={false}
-                                                addonAfter={<span className="text-gray-500 font-semibold px-2">VND</span>}
-                                                size="large"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {calendarMode === "BLOCK" && (
-                                        <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-center shadow-sm">
-                                            <p className="text-red-600 text-sm font-semibold flex items-center justify-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                                Selected dates will be closed
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {calendarMode === "OPEN" && (
-                                        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-center shadow-sm">
-                                            <p className="text-emerald-600 text-sm font-semibold flex items-center justify-center gap-2">
-                                                <FaUnlock />
-                                                Selected dates will be available
-                                            </p>
-                                            <p className="text-xs text-emerald-500 mt-1">
-                                                Removes custom blocks & prices
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    handleApplyChanges();
-                                }}
-                                        className={`w-full py-4 text-white rounded-2xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all active:scale-[0.98] 
-                                        ${calendarMode === "PRICE"
-                                            ? "bg-gradient-to-r from-gray-900 to-gray-800"
-                                            : calendarMode === "BLOCK"
-                                                ? "bg-gradient-to-r from-red-600 to-red-500"
-                                                : "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-500"
-                                        }`}>
-                                    {calendarMode === "PRICE" ? "Apply Price" : calendarMode === "BLOCK" ? "Block Dates" : "Unblock / Open Dates"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* SECTION 4: Itinerary */}
                     <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6 md:p-8">
                         <div className="flex mb-6 items-center gap-3 border-b border-gray-100 pb-3">
                             <div className="w-1 h-6 bg-purple-500 rounded-full"></div>

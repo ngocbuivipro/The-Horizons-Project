@@ -280,7 +280,7 @@ const AdminViewTour = () => {
                     <p className="text-xs md:text-sm text-gray-400 mt-1 ml-11">Manage travel packages, pricing and availability</p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                    <Button icon={<ReloadOutlined />} onClick={() => fetchData({current: 1})} className="rounded-lg flex-1 md:flex-none">Refresh</Button>
+                    <Button icon={<ReloadOutlined />} onClick={() => fetchData({current: 1})} className="rounded-lg flex-1 md:flex-none"></Button>
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/dashboard-create-tour")} className="bg-gray-900 hover:!bg-gray-800 border-0 rounded-lg flex-1 md:flex-none">Add New</Button>
                 </div>
             </div>
